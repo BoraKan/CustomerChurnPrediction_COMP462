@@ -11,6 +11,35 @@ def load_data(path):
     return df
 
 
+def engineer_features(df):
+    """
+    Creates domain-driven features before one-hot encoding.
+    Internet Service column must still be in its original string form when this is called.
+    """
+    service_cols = [
+        'Multiple Lines', 'Online Security', 'Online Backup',
+        'Device Protection', 'Tech Support', 'Streaming TV', 'Streaming Movies'
+    ]
+    # Total number of optional add-on services the customer subscribes to.
+    # Customers with fewer services are more likely to churn (less switching cost).
+    df['services_count'] = df[service_cols].sum(axis=1)
+
+    # Average monthly spend per month of tenure.
+    # High values for short-tenure customers may indicate price sensitivity.
+    df['charge_per_tenure'] = df['Monthly Charges'] / (df['Tenure Months'] + 1)
+
+    # Customers in their first 6 months are at highest churn risk.
+    df['is_new_customer'] = (df['Tenure Months'] < 6).astype(int)
+
+    # Subscribing to both phone and internet means higher switching cost.
+    # Internet Service is still a string category at this point.
+    df['has_both_services'] = (
+        (df['Phone Service'] == 1) & (df['Internet Service'] != 'No')
+    ).astype(int)
+
+    return df
+
+
 def preprocess(df):
     # columns that are not useful for prediction
     drop_cols = [
@@ -34,6 +63,9 @@ def preprocess(df):
         df[col] = df[col].map({'Yes': 1, 'No': 0}).fillna(0).astype(int)
 
     df['Gender'] = df['Gender'].map({'Male': 1, 'Female': 0})
+
+    # engineer new features before one-hot encoding (Internet Service still string here)
+    df = engineer_features(df)
 
     # one-hot encode the remaining categorical columns
     cat_cols = df.select_dtypes(include='object').columns.tolist()
